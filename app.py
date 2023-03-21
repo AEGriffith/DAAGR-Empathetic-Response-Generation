@@ -74,7 +74,7 @@ def user(user_message, history):
 def bot(history):
     user_message = history[-1][0]
     bot_message = predict(user_message, history)
-    history[-1][1] = ' ' + bot_message  # Add a space before the bot's response
+    history[-1][1] = bot_message
     time.sleep(1)
     return history
 
