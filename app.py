@@ -83,7 +83,6 @@ with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
             chatbot1 = gr.Chatbot().style()
-            state1 = gr.State([])
             msg1 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
 
     msg1.submit(user, [msg1, chatbot1], [msg1, chatbot1], queue=False).then(
