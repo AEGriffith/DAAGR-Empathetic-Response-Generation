@@ -14,16 +14,6 @@ tf.get_logger().setLevel('ERROR')
 emotion_tokenizer = AutoTokenizer.from_pretrained("aegrif/CIS6930_DAAGR_Classification")
 emotion_model = TFAutoModelForSequenceClassification.from_pretrained("aegrif/CIS6930_DAAGR_Classification")
 
-#
-tokenizer1 = AutoTokenizer.from_pretrained("microsoft/DialoGPT-small")
-model1 = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-small")
-
-# tokenizer2 = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
-# model2 = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
-#
-# tokenizer3 = AutoTokenizer.from_pretrained("microsoft/DialoGPT-large")
-# model3 = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-large")
-
 emotion_dict = {'disappointed': 0, 'annoyed': 1, 'excited': 2, 'afraid': 3, 'disgusted': 4, 'grateful': 5,
                 'impressed': 6, 'prepared': 7}
 inverted_emotion_dict = {v: k for k, v in emotion_dict.items()}
@@ -38,7 +28,9 @@ def get_context(user_input):
     return context
 
 
-def predict(user_input, history):
+def predict(user_input, history, model_text):
+    tokenizer1 = AutoTokenizer.from_pretrained(model_text)
+    model1 = AutoModelForCausalLM.from_pretrained(model_text)
     # Get the context from the user input
     # NOTE: Not implemented yet
     context = get_context(user_input)
@@ -71,9 +63,9 @@ def user(user_message, history):
     return "", history + [[user_message, None]]
 
 
-def bot(history):
+def bot(history, model_text):
     user_message = history[-1][0]
-    bot_message = predict(user_message, history)
+    bot_message = predict(user_message, history, model_text)
     history[-1][1] = bot_message
     time.sleep(1)
     return history
@@ -82,12 +74,28 @@ def bot(history):
 with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
+            modeltxt1 = gr.Textbox(value="microsoft/DialoGPT-small", visible=False).style(container=False)
             chatbot1 = gr.Chatbot().style()
             msg1 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
+        with gr.Column():
+            modeltxt2 = gr.Textbox(value="microsoft/DialoGPT-medium", visible=False).style(container=False)
+            chatbot2 = gr.Chatbot().style()
+            msg2 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
+        with gr.Column():
+            modeltxt3 = gr.Textbox(value="microsoft/DialoGPT-large", visible=False).style(container=False)
+            chatbot3 = gr.Chatbot().style()
+            msg3 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
 
     msg1.submit(user, [msg1, chatbot1], [msg1, chatbot1], queue=False).then(
-        bot, chatbot1, chatbot1
+        bot, [chatbot1, modeltxt1], chatbot1
     )
+    msg2.submit(user, [msg2, chatbot2], [msg2, chatbot2], queue=False).then(
+        bot, [chatbot2, modeltxt2], chatbot2
+    )
+    msg3.submit(user, [msg3, chatbot3], [msg3, chatbot3], queue=False).then(
+        bot, [chatbot3, modeltxt3], chatbot3
+    )
+
 
 if __name__ == "__main__":
     demo.launch()
