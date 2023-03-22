@@ -3,7 +3,8 @@ import tensorflow as tf
 import time
 import warnings
 import os
-from transformers import AutoTokenizer, TFAutoModelForSequenceClassification, AutoModelForCausalLM
+from transformers import AutoTokenizer, TFAutoModelForSequenceClassification, AutoModelForCausalLM, \
+    TFAutoModelForQuestionAnswering, pipeline, TFT5ForConditionalGeneration
 
 # Warning Suppression
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -13,6 +14,19 @@ tf.get_logger().setLevel('ERROR')
 
 emotion_tokenizer = AutoTokenizer.from_pretrained("aegrif/CIS6930_DAAGR_Classification")
 emotion_model = TFAutoModelForSequenceClassification.from_pretrained("aegrif/CIS6930_DAAGR_Classification")
+
+# generation models
+# encoder
+distilbert_model = TFAutoModelForQuestionAnswering.from_pretrained("aegrif/CIS6930_DAAGR_DistilBert")
+distilbert_tokenizer = AutoTokenizer.from_pretrained("aegrif/CIS6930_DAAGR_DistilBert")
+
+# decoder
+gpt2_model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-small")
+gpt2_tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-small")
+
+# encoder-decoder
+t5_model = TFT5ForConditionalGeneration.from_pretrained("t5-small")
+t5_tokenizer = AutoTokenizer.from_pretrained("t5-small")
 
 emotion_dict = {'disappointed': 0, 'annoyed': 1, 'excited': 2, 'afraid': 3, 'disgusted': 4, 'grateful': 5,
                 'impressed': 6, 'prepared': 7}
@@ -28,33 +42,39 @@ def get_context(user_input):
     return context
 
 
-def predict(user_input, history, model_text):
-    tokenizer1 = AutoTokenizer.from_pretrained(model_text)
-    model1 = AutoModelForCausalLM.from_pretrained(model_text)
+def predict_distilbert(user_input, history):
     # Get the context from the user input
-    # NOTE: Not implemented yet
     context = get_context(user_input)
 
-    # Combine the conversation history with the user input (without emotion context and labels) and add the EOS token after each message
-    conversation = "".join([f"{msg[0]}{tokenizer1.eos_token}{msg[1]}{tokenizer1.eos_token}" for msg in history if
-                            msg[1] is not None]) + f" {user_input} {tokenizer1.eos_token}"
+    # Generate a response using the DistilBert model
+    question_answerer = pipeline("question-answering", model=distilbert_model, tokenizer=distilbert_tokenizer)
+    output = question_answerer(question=user_input, context=context)
+    # Decode the generated response
+    bot_response = output['answer']
 
-    # Tokenize the conversation
-    input_ids = tokenizer1.encode(conversation, return_tensors="pt")
+    return bot_response
+
+
+def predict_gpt2(user_input, history):
+    # Get the context from the user input
+    context = get_context(user_input)
 
     # Generate a response using the DialoGPT model
-    output = model1.generate(
-        input_ids,
-        max_length=2048,
-        pad_token_id=tokenizer1.eos_token_id,
-        no_repeat_ngram_size=3,
-        temperature=0.8,  # Adjust the temperature for more randomness in the generated text
-        top_k=50,  # Set the top_k parameter for controlling the token selection
-        top_p=0.95,  # Set the top_p parameter for controlling the token selection
-    )
-
+    chatbot = pipeline("text-generation", model=gpt2_model, tokenizer=gpt2_tokenizer, pad_token_id=50256)
+    output = chatbot(user_input + context, max_length=100, num_return_sequences=1)
     # Decode the generated response
-    bot_response = tokenizer1.decode(output[:, input_ids.shape[-1]:][0], skip_special_tokens=True)
+    bot_response = output[0]['generated_text']
+
+    return bot_response
+
+
+def predict_t5(user_input, history):
+    # Get the context from the user input
+    context = get_context(user_input)
+
+    # Generate a response using the T5 model
+    chatbot = pipeline("text2text-generation", model=t5_model, tokenizer=t5_tokenizer, pad_token_id=50256)
+    bot_response = chatbot(user_input + context, max_length=100, num_return_sequences=1)[0]['generated_text']
 
     return bot_response
 
@@ -63,9 +83,25 @@ def user(user_message, history):
     return "", history + [[user_message, None]]
 
 
-def bot(history, model_text):
+def distil_bot(history):
     user_message = history[-1][0]
-    bot_message = predict(user_message, history, model_text)
+    bot_message = predict_distilbert(user_message, history)
+    history[-1][1] = bot_message
+    time.sleep(1)
+    return history
+
+
+def gpt2_bot(history):
+    user_message = history[-1][0]
+    bot_message = predict_gpt2(user_message, history)
+    history[-1][1] = bot_message
+    time.sleep(1)
+    return history
+
+
+def t5_bot(history):
+    user_message = history[-1][0]
+    bot_message = predict_t5(user_message, history)
     history[-1][1] = bot_message
     time.sleep(1)
     return history
@@ -74,28 +110,24 @@ def bot(history, model_text):
 with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
-            modeltxt1 = gr.Textbox(value="microsoft/DialoGPT-small", visible=False).style(container=False)
             chatbot1 = gr.Chatbot().style()
             msg1 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
         with gr.Column():
-            modeltxt2 = gr.Textbox(value="microsoft/DialoGPT-medium", visible=False).style(container=False)
             chatbot2 = gr.Chatbot().style()
             msg2 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
         with gr.Column():
-            modeltxt3 = gr.Textbox(value="microsoft/DialoGPT-large", visible=False).style(container=False)
             chatbot3 = gr.Chatbot().style()
             msg3 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
 
     msg1.submit(user, [msg1, chatbot1], [msg1, chatbot1], queue=False).then(
-        bot, [chatbot1, modeltxt1], chatbot1
+        distil_bot, chatbot1, chatbot1
     )
     msg2.submit(user, [msg2, chatbot2], [msg2, chatbot2], queue=False).then(
-        bot, [chatbot2, modeltxt2], chatbot2
+        gpt2_bot, chatbot2, chatbot2
     )
     msg3.submit(user, [msg3, chatbot3], [msg3, chatbot3], queue=False).then(
-        bot, [chatbot3, modeltxt3], chatbot3
+        t5_bot, chatbot3, chatbot3
     )
-
 
 if __name__ == "__main__":
     demo.launch()
