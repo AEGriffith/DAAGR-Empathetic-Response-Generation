@@ -141,8 +141,15 @@ def t5_bot(history):
 
 
 with gr.Blocks() as demo:
+
     with gr.Row():
-        gr.Image("instructions.png", interactive=False, show_label=False)
+        gr.Markdown(
+            "# DAAGR Chatbot Demo\n\n\n" \
+            "## Below you’ll see three chatbots, each running on different models. Here are a list of scenarios that we would like you to test on all three bots:\n\n" \
+            "### 1. I was delighted the other day when I got to see a friend that I hadn’t seen in 20 years.\n" \
+            "### 2. I was so upset when I failed my math test, I was only 1 percent off!\n" \
+            "### 3. I just ordered a new cookery book and am eagerly awaiting its arrival. I want to delve in and try lots of new recipes!",
+        )
     with gr.Row():
         with gr.Column():
             chatbot1 = gr.Chatbot(label="Chatbot #1").style(height=500)
@@ -154,8 +161,9 @@ with gr.Blocks() as demo:
             chatbot3 = gr.Chatbot(label="Chatbot #3").style(height=500)
             msg3 = gr.Textbox(show_label=False, placeholder="Enter text and press enter").style(container=False)
     with gr.Row():
-        gr.HTML('<p style="font-size:150%; font-family: "Playfair Display", "Didot", "Times New Roman">Once you have finished interacting with the agents, please follow the link below to complete a short survey about your experience.</p>'
-                '<p style="font-size:125%; font-family: "Playfair Display", "Didot", "Times New Roman"><a href=''https://docs.google.com/forms/d/1SICfdLcj_jbDeObZ6lxZ7b8a1L7fsZjX_ETfWc5o4VQ/edit'' target=''_blank''>https://docs.google.com/forms/d/1SICfdLcj_jbDeObZ6lxZ7b8a1L7fsZjX_ETfWc5o4VQ/edit</a></p')
+        gr.Markdown(
+            '### Based on the individual responses from each chatbot, please follow the [link](https://docs.google.com/forms/d/1SICfdLcj_jbDeObZ6lxZ7b8a1L7fsZjX_ETfWc5o4VQ/edit) and rate the models with respect to three metrics: fluency, relevance, and appropriateness.'\
+            '\n ### Thank you for participating in our study.')
 
     msg1.submit(user, [msg1, chatbot1], [msg1, chatbot1], queue=False).then(
         t5_bot_no_emo, chatbot1, chatbot1
